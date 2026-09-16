@@ -1,0 +1,27 @@
+# REALIZE-oxidation validated Python environment
+#
+# IMPORTANT:
+# This project has exhibited silent scientific/behavioral failures under
+# incompatible dependency versions. For reproducibility, use the versions
+# below rather than relaxing these constraints.
+#
+# Python: 3.9.x
+#
+# PyTorch is installed separately because the CUDA wheel index must be chosen
+# explicitly:
+#
+#   pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+#
+# The installed validated build reports torch==2.6.0+cu118.
+
+numpy==1.26.4
+e3nn==0.5.6
+sevenn==0.10.3
+ase==3.24.0
+torch-geometric==2.6.1
+PyYAML==6.0.2
+matplotlib==3.9.4
+scikit-learn==1.6.0
+tqdm==4.67.1
+scipy==1.13.1
+matscipy==1.1.1

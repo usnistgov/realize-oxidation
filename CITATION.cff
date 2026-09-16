@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use REALIZE-oxidation in your research, please cite the accompanying paper."
+title: "REALIZE-oxidation"
+type: software
+authors:
+  - family-names: Jeong
+    given-names: Wonseok
+  - family-names: Tavazza
+    given-names: Francesca
+  - family-names: DeCost
+    given-names: Brian
+
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Jeong
+      given-names: Wonseok
+    - family-names: Tavazza
+      given-names: Francesca
+    - family-names: DeCost
+      given-names: Brian
+  title: "Bridging Atomistic Simulation and Experimental Processing Timescales with Goal-Directed Deep Reinforcement Learning"
+  year: 2026
+  doi: "10.48550/arXiv.2605.16214"
+  url: "https://arxiv.org/abs/2605.16214"

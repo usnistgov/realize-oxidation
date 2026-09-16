@@ -1,0 +1,68 @@
+# LAMMPS input script for neb calculations
+
+# NEB parameters
+variable numreplicas equal 7
+variable springconst equal 1
+
+# Run parameters
+variable thermosteps equal 100
+variable dumpsteps equal 5000
+variable timestep equal 0.005
+
+# Relaxation parameters
+variable minsteps equal 1000
+variable climbsteps equal 1000
+variable dmax equal 0.01
+variable etol equal 1e-09
+variable ftol equal 10.0
+
+# LAMMPS setting parameters
+box tilt large
+atom_modify map array
+
+# potential and initial system definition
+units real
+atom_style charge
+
+boundary p p f
+read_data init
+
+pair_style reaxff NULL safezone 3.0 mincap 150
+pair_coeff * * 41524_2023_1112_MOESM1_ESM.txt Si O
+
+fix ch_eq   all qeq/reaxff 1 0.0 10.0 1.0e-6 reaxff maxiter 400
+
+# property compute definitions
+compute peatom all pe/atom
+
+# define neb
+fix neb all neb ${springconst}
+
+# dump file definition
+variable i uloop ${numreplicas}
+dump dumpy all custom ${dumpsteps} replica-${i}.dump id type x y z c_peatom
+#dump_modify dumpy format float %.13e
+
+# thermo definition
+thermo ${thermosteps}
+thermo_style custom step pe
+#thermo_style custom step lx ly lz pe
+thermo_modify format float %.13e
+
+# minimization definition
+timestep ${timestep}
+#min_style quickmin
+min_style fire
+min_modify dmax ${dmax}
+
+
+# run neb
+#neb ${etol} ${ftol} ${minsteps} ${climbsteps} ${thermosteps} final final.dat
+neb ${etol} ${ftol} ${minsteps} ${climbsteps} ${thermosteps} each image.$i
+
+unfix neb
+
+# Dump final frame after NEB run
+#run 0
+#dump dump1 all custom 1 res.lammpstrj id type x y z
+#dump_modify dump1 sort id

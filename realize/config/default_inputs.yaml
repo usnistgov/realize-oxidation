@@ -1,0 +1,320 @@
+# =============================================================================
+# REALIZE -- FULL DEFAULT PARAMETER CATALOG  (reference)
+# =============================================================================
+# Lists every tunable parameter at its default value; mirrors create_default_config()
+# in config/default_config.py (the authoritative source).
+#
+# Layering (config/input_loader.py):
+#   1. create_default_config()  -- dataclass defaults (source of truth)
+#   2. this file                -- overlaid and checked to equal layer 1 (drift guard)
+#   3. root ./input.yaml        -- run-specific overrides (applied last)
+#   4. seed = meta.seed_base + SLURM_ARRAY_TASK_ID, then PPOConfig.validate()
+#
+# To tune for a run: copy the line into ./input.yaml and change it there, not here.
+# To change a default permanently: edit config/default_config.py AND this file to
+#   match -- the loader aborts (naming the key) if the two drift.
+#
+# device & seed are run-level (meta.device, meta.seed_base) and live only in
+#   ./input.yaml. runtime.seed is resolved as meta.seed_base + SLURM_ARRAY_TASK_ID.
+#
+# The four debug flags below (enable_equivariance_tests, log_gradient_norms,
+#   sampling.debug_equivariance, sampling.debug_frame_encoder) are forced False here
+#   even though the raw dataclass field default is True. They DO affect RNG/numerics,
+#   so leave them False unless debugging.
+# =============================================================================
+
+
+# ---------------------------------------------------------------------------
+# model -- neural network architecture (equivariant policy/critic)
+# ---------------------------------------------------------------------------
+model:
+  # E3nn embedding
+  embedding_irreps: "128x0e+64x1e+32x2e"
+  encoder_output_irreps: "16x0e+8x1e+4x2e"
+  use_symmetric_embedding: true
+  scalar_dim: 32
+  vector_dim: 8                       # number of vector channels (8x1o)
+
+  mlp_hidden_dim: 128
+
+  # Spherical harmonics
+  lmax: 4
+  num_channels: 1
+
+  # Direction head
+  use_continuous_direction: true
+  direction_perturb_std: 0.1          # tangent-plane noise std (radians)
+  use_langevin_direction: true
+  langevin_steps: 10
+  langevin_step_size: 0.03
+  langevin_noise_scale: 0.05
+
+  # S^2 nonlinearity block
+  enable_s2_block: true
+  s2_grid_resolution: 32              # S^2 grid is 32x32
+  s2_activation: gelu                 # relu | gelu | tanh
+  s2_convolution_kernel_size: 3
+  legendre_max_degree: 10
+
+  # Frame alignment
+  use_frame_alignment: true
+  frame_encoder_hidden: "64x0e+32x1e+16x2e+8x3e"
+  frame_encoder_output: "16x0e+8x1e+4x2e"
+
+  # Radial conditioning
+  use_radial_conditioning: true
+  radial_num_basis: 32
+  radial_max_radius: 10.0
+
+  # Magnitude (translation distance) prediction
+  max_trans_distance: 3.0
+  rqs_flow_enabled: true              # Rational Quadratic Spline flow
+  r_min: 0.5                          # min translation distance
+  r_max: 3.0                          # max translation distance (== max_trans_distance)
+  rqs_num_bins: 8
+  rqs_num_layers: 2
+  use_clamped_magnitude: false        # fallback to clamped scalar head
+
+
+# ---------------------------------------------------------------------------
+# channels -- channel gating and temperatures
+# ---------------------------------------------------------------------------
+channels:
+  num_channels: 1
+  lmax_per_channel: [3, 3, 2, 2]
+  gate_hidden: [64, 64]
+  gate_dropout: 0.05
+  gate_activation: softmax            # sigmoid | softmax
+  gate_norm: layernorm                # layernorm | batchnorm | null
+  gate_bias: true
+  gate_temp_init: 1.0
+  gate_temp_min: 0.35
+  gate_temp_anneal: 0.997
+  gate_hard: false
+  gate_bias_init: 0.0
+  gate_temperature: 1.0
+  gate_threshold: 0.1
+  min_active_channels: 1
+
+  # Per-channel temperatures (one entry per channel)
+  channel_temp_scales: [0.25, 0.5, 1.0, 2.0]
+  channel_temp_min: 0.01
+  channel_temp_max: 5.0
+  channel_temp_learning_rate: 0.01
+  learnable_channel_temps: true
+  channel_temp_init_strategy: fixed   # uniform | diverse | fixed
+
+  # Channel diversity / health
+  channel_diversity_weight: 1.0
+  channel_diversity_annealing: true
+  channel_similarity_threshold: 0.6
+  channel_entropy_weight: 0.01
+  channel_dirichlet_alpha: 1.0
+  channel_reinit_threshold: 50
+  monitor_channel_collapse: true
+
+
+# ---------------------------------------------------------------------------
+# sampling -- direction sampling grid, temperature, Langevin, debug
+# ---------------------------------------------------------------------------
+sampling:
+  grid_type: fibonacci                # lebedev | fibonacci
+  fibonacci_points: 4096
+  lebedev_degree: 5                   # 5->50, 9->110, 11->170 points
+  num_grid_points: 1000
+
+  # Dense Gauss-Legendre sampling
+  use_dense_gl: true
+  gl_n_beta: 64                       # polar angle resolution
+  gl_n_alpha: 64                      # azimuthal angle resolution
+
+  # Sampling temperature
+  temperature_init: 1.0
+  temperature_min: 0.01
+  temperature_decay: 0.99
+  temperature_anneal_episodes: 200
+
+  # Langevin sampling
+  use_langevin_sampling: false
+  langevin_warmup_episodes: 50
+  langevin_num_steps: 10
+  langevin_init_step_size: 0.1
+  langevin_use_mh_correction: true
+  langevin_decay_schedule: linear     # linear | exponential | cosine
+
+  # Eval-time Langevin refinement
+  eval_langevin_enabled: false
+  eval_langevin_steps: 5
+  eval_langevin_step_size: 0.05
+
+  use_cache: true                     # cache SH evaluations
+
+  # Equivariance debugging -- these DO change RNG/numerics; keep off for training
+  debug_equivariance: false           # raw field default is True; forced False here
+  equivariance_check_frequency: 20
+  debug_frame_encoder: false          # raw field default is True; forced False here
+  equivariance_tolerance: 0.00001     # 1e-5
+
+  # Gumbel-Softmax
+  gumbel_temperature_init: 1.0
+  gumbel_temperature_min: 0.1
+  gumbel_temperature_anneal_episodes: 300
+  use_straight_through: true
+
+
+# ---------------------------------------------------------------------------
+# algorithm -- PPO hyperparameters
+# ---------------------------------------------------------------------------
+algorithm:
+  lr: 0.0003                          # 3e-4
+  gamma: 0.99
+  eps_clip: 0.3
+  k_epochs: 6
+  critic_extra_epochs: 25
+  mc_warmup_episodes: 0
+
+  gae_lambda: 0.95                    # 0.97-0.98 for very sparse rewards
+  normalize_rewards: false
+  success_oversample_ratio: 3.0       # >=1.0; oversample dissociation episodes
+
+  # Entropy schedule
+  entropy_coeff: 0.005
+  entropy_anneal: true
+  entropy_anneal_episodes: 1000
+  final_entropy_coeff: 0.0005
+
+  # Loss coefficients
+  policy_loss_coeff: 1.0
+  value_loss_coeff: 0.5
+  clip_value_loss: false
+  value_clip_range: 1.0
+  normalize_value: true
+
+  # Gradient clipping
+  max_grad_norm: 5.0
+  grad_clip_enabled: true
+
+  # KL regularization (optional)
+  use_kl_regularization: false
+  kl_target: 0.01
+  kl_coeff: 0.01
+
+
+# ---------------------------------------------------------------------------
+# reward -- reward function and shaping
+# ---------------------------------------------------------------------------
+reward:
+  use_neb_reward: true
+  ea_weight: 4.0
+  dissociation_weight: 2.0
+  pe_reward_weight: 0.01
+
+  # Beta-solver area@mass targets (one per channel, sharpest -> broadest)
+  area_at_mass_targets: [0.10, 0.20, 0.35, 0.50]
+  use_learnable_beta: true
+  learnable_beta_init: 2.0
+  learnable_beta_min: 0.5
+  learnable_beta_max: 25.0
+  target_mass_fraction: 0.70          # for A@70% metric
+
+  # Success criteria
+  require_dissociation: true
+  success_reward_weight: 1.0
+
+  # Penalties
+  timeout_penalty: 0.5
+  invalid_step_penalty: 0.005
+  high_barrier_threshold: 2.5
+  high_barrier_penalty: 0.001
+  oscillation_penalty: 0.005
+
+  # Potential-based PE shaping: F(s,s') = PE(s) - gamma*PE(s')
+  pe_shaping_gamma: 0.99
+  invalid_penalty_cap: -0.3           # max cumulative invalid penalty per episode (negative)
+
+  # Sigmoid shaping for activation energy (Ea)
+  ea_sigmoid_k: 0.0862
+  ea_sigmoid_midpoint: 1.6
+  t_target: 1.6e-07
+  nu_0: 1.0e+13
+  kappa_aggregation: min
+  kappa_softmin_tau: 0.1
+  # Adaptive midpoint schedule (property #25)
+  t_target_init: 1.6e-07
+  t_target_floor: 1.08e-09
+  mu_quantile: 0.25
+  mu_margin: 0.198
+  mu_max_decades_per_cycle: 1.0
+  mu_ratchet_release_cycles: 3
+
+  cap_unsuccessful_reward: true
+  Ea_gamma: 0.99
+  use_translation_in_pathway: true
+
+
+# ---------------------------------------------------------------------------
+# runtime -- training duration, checkpointing, parallelism, logging
+# ---------------------------------------------------------------------------
+# NOTE: seed is NOT listed here -- it is resolved at runtime as
+#       meta.seed_base + SLURM_ARRAY_TASK_ID (set meta.seed_base in ./input.yaml).
+runtime:
+  # Training duration
+  total_episodes: 1000
+  max_steps: 25
+  episodes_per_update: 24             # episodes accumulated per PPO update
+
+  # Checkpointing
+  save_interval: 1
+  checkpoint_dir: "./checkpoints"
+  resume_path: null                   # path to a checkpoint to resume from, or null
+
+  # Distributed (shared-model) training -- separate from num_parallel_workers below
+  use_shared_model: false
+  shared_model_dir: "../../shared_net"
+
+  # Surface reset (handle surface saturation as O atoms accumulate). 0 disables.
+  reset_surface_every_n_episodes: 10000
+  max_cumulative_o_before_reset: 80
+
+  # In-node parallel episode collection (ParallelEpisodeCollector).
+  #   num_parallel_workers > 1 spawns that many CPU workers, each in tmp/run{k}/
+  #   with its own LAMMPS+NEB, writing per-run outputs to results/run{k}/; the main
+  #   process does PPO + global logging. Total cores = workers x cores_per_worker.
+  num_parallel_workers: 1             # 1 = serial
+  cores_per_worker: 7                 # NEB MPI ranks per worker
+
+  # Logging
+  log_interval: 1
+  save_sh_interval: 1
+  sh_resolution: 64
+  verbose: false                      # false=INFO (normal log); true=DEBUG firehose
+  log_gradient_norms: false           # raw field default is True; forced False here
+  visualize_sh_coeffs: true
+  enable_equivariance_tests: false    # raw field default is True; forced False here
+
+  # Exploration / novelty
+  adaptive_exploration: true
+  novelty_threshold: 0.85
+  novelty_memory_size: 1000
+
+  # Rollback
+  max_rollback_attempts: 10
+  rollback_penalty_multiplier: 1.5
+
+
+# ---------------------------------------------------------------------------
+# backbone -- SevenNet backbone fine-tuning (actor + critic)
+# ---------------------------------------------------------------------------
+backbone:
+  # Actor backbone
+  train_backbone: true
+  unfreeze_mode: last_2_layers        # last_layer | last_2_layers | last_3_layers | all
+  backbone_lr_multiplier: 0.003       # backbone_lr = policy_lr * this
+  backbone_gradient_clip: 0.1
+  warm_start_episodes: 150            # keep actor backbone frozen for N episodes
+
+  # Critic backbone (frozen by default for stable value targets)
+  critic_train_backbone: false
+  critic_unfreeze_mode: last_layer    # last_layer | last_2_layers | last_3_layers | all
+  critic_backbone_lr_multiplier: 0.005
+  critic_backbone_gradient_clip: 0.05

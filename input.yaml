@@ -1,0 +1,72 @@
+# =============================================================================
+# REALIZE -- user-facing training input  (high-level / frequently tuned)
+# =============================================================================
+#    realize/config/default_inputs.yaml -- the FULL catalog of every tunable
+#        parameter (overlaid + verified to equal layer 1; it never changes numerics).
+#        Open it to see every knob and its default; copy any line here to override it.
+# =============================================================================
+
+meta:
+  device: cuda          # falls back to CPU if CUDA is absent
+  seed_base: 88         # base seed; a SLURM id is folded on top so every run differs
+  seed: 88            # uncomment to PIN an exact seed (same every run; reproducible)
+
+# ---------------------------------------------------------------------------
+# runtime -- training duration, parallelism, logging  (most commonly tuned)
+# ---------------------------------------------------------------------------
+runtime:
+  total_episodes: 10000     
+  max_steps: 25             
+  save_interval: 1          
+  episodes_per_update: 24   
+  use_shared_model: false   
+
+  # --- In-node parallel episode collection (the multi-run mode) ---
+  # num_parallel_workers > 1 spawns that many CPU workers, each in tmp/run{k}/ with
+  # its own LAMMPS+NEB, writing per-run movies/NEB/SH to results/run{k}/. The main
+  # process does PPO + global logging (learning_curve, checkpoints, global stdout).
+  # Total cores = num_parallel_workers * cores_per_worker -- size your SBATCH to match.
+  num_parallel_workers: 1       # 1 = serial e.g. 6 for 6 runs
+  cores_per_worker: 7           # NEB MPI ranks per worker. 6 workers x 7 = 42 cores
+
+  # --- Logging verbosity ---
+  verbose: false                # false = INFO (normal); true = DEBUG firehose
+
+  # --- Surface reset (handle O accumulation). 0 disables. ---
+  # reset_surface_every_n_episodes: 10000
+  max_cumulative_o_before_reset: 80
+
+  # --- Resume from a checkpoint (null = fresh start) ---
+  resume_path: null
+
+# ---------------------------------------------------------------------------
+# algorithm -- PPO hyperparameters  (tune if learning is unstable / too slow)
+# ---------------------------------------------------------------------------
+algorithm:
+  lr: 0.0003                   # 3e-4 policy learning rate
+  gamma: 0.99                  # discount factor
+  eps_clip: 0.3                # PPO clip range
+  k_epochs: 6                  # policy epochs per update
+  gae_lambda: 0.95             # GAE lambda (raise toward 0.98 for sparse rewards)
+  entropy_coeff: 0.005         # exploration bonus (annealed to final_entropy_coeff)
+  max_grad_norm: 5.0           # gradient clipping norm
+
+# ---------------------------------------------------------------------------
+# reward -- reward shaping  (tune the dissociation / barrier trade-off)
+# ---------------------------------------------------------------------------
+reward:
+  ea_weight: 4.0               # weight on activation-energy term
+  dissociation_weight: 2.0     # weight on successful-dissociation term
+  ea_sigmoid_k: 0.086          # sigmoid steepness for Ea shaping
+  ea_sigmoid_midpoint: 1.6     # sigmoid midpoint (eV) for Ea shaping
+  kappa_aggregation: softmin
+  kappa_softmin_tau: 0.1
+
+# ---------------------------------------------------------------------------
+# backbone -- SevenNet backbone fine-tuning  (advanced)
+# ---------------------------------------------------------------------------
+backbone:
+  train_backbone: true             # fine-tune the actor backbone
+  warm_start_episodes: 150         # keep backbone frozen for N episodes first
+  backbone_lr_multiplier: 0.003    # backbone_lr = policy_lr * this
+

@@ -1,0 +1,73 @@
+# =============================================================================
+# REALIZE-oxidation .gitignore
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+*~
+
+# Development backup files
+*.bak
+*.bak.*
+*.bak_*
+*.orig
+
+# Generated REALIZE output
+results/
+tmp/
+eval_runs/
+
+# Scheduler / stdout / logs
+stdout_*
+slurm-*.out
+*.log
+*.err
+
+# LAMMPS trajectory and transient NEB files
+*.lammpstrj
+init
+final
+temp_neb.in
+image.*
+
+# =============================================================================
+# External assets intentionally NOT distributed
+# =============================================================================
+
+# ReaxFF Si/O/H parameter file.
+# Users obtain this from the supplementary material of:
+# https://doi.org/10.1038/s41524-023-01112-6
+data/41524_2023_1112_MOESM1_ESM.txt
+
+# Compiled LAMMPS executable.
+# Users build LAMMPS themselves and create data/lmp_neb as a local symlink.
+data/lmp_neb
+
+# SevenNet is installed separately as a Python dependency.
+sevenn/
+
+# =============================================================================
+# Files intentionally distributed
+# =============================================================================
+
+# Custom trained embedding checkpoint for REALIZE.
+!data/checkpoint.pth
+
+!data/str.dat
+!data/O2.dat
+!data/neb_lammps.in
+!data/README.md
