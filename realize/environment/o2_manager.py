@@ -37,8 +37,8 @@ class O2Manager:
                 cell_x = atoms.cell[0, 0]
                 cell_y = atoms.cell[1, 1]
 
-                x_pos = np.random.uniform(0.0 * cell_x, 1.0 * cell_x)
-                y_pos = np.random.uniform(0.0 * cell_y, 1.0 * cell_y)
+                x_pos = np.random.uniform(0.2 * cell_x, 0.8 * cell_x)
+                y_pos = np.random.uniform(0.2 * cell_y, 0.8 * cell_y)
 
                 # Actual O2 placement: anywhere in cell (PBC in x,y), z above surface
                 cell_x = atoms.cell[0, 0]

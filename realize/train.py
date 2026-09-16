@@ -80,9 +80,13 @@ def validate_environment(config):
     neb_path = get_neb_executable_path()
     neb_available = os.path.exists(neb_path) or shutil.which(neb_path) is not None
     if not neb_available:
-        # lmp_neb executable is no longer used (NEB runs in-process via ASENEBCalculator).
-        # Its absence is not an error; warn only.
-        _LOG.info(f"NEB executable not found at {neb_path} (not required; ASE NEB in use)")
+        use_neb = bool(getattr(getattr(config, "reward", None), "use_neb_reward", False))
+        if use_neb:
+            raise FileNotFoundError(
+                f"NEB executable required but not found: {neb_path}\n"
+                f"Checked: file existence and PATH"
+            )
+        _LOG.info(f"NEB executable not found at {neb_path} (not required)")
     else:
         _LOG.info(f"Found NEB executable: {neb_path}")
 

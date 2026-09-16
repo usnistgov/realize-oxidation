@@ -155,19 +155,6 @@ class CycleStateManager:
                 self._submitted_this_cycle = False
             return advanced, state["current_midpoint"]
 
-        # A submission carrying no NEB-verified barriers is not a completed
-        # cycle's worth of measurement: counting it toward quorum lets a cycle
-        # advance with an empty pooled Ea_eff set, leaving the midpoint schedule
-        # uncalibrated. Decline it (visibly) and let the worker submit later.
-        if not ea_effs:
-            state = self._read_state()
-            _LOG.warning(
-                f"  [CYCLE STATE] Worker {self.worker_id}: submission REJECTED -- "
-                f"0 Ea values (no NEB-verified dissociation this cycle). "
-                f"Not counted toward quorum; will retry after further episodes."
-            )
-            return False, state["current_midpoint"]
-
         result = {"quorum_met": False, "new_midpoint": self.initial_midpoint}
 
         def modify(state):

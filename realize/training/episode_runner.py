@@ -182,12 +182,11 @@ class EpisodeRunner(EpisodeDiagnosticsMixin, EpisodeVisualizationMixin, EpisodeR
         self._episode_valid_indices = []
 
         base_ea = self.config.reward_config.ea_weight if hasattr(self.config, 'reward_config') else self.config.reward.ea_weight
-        # Scaler disabled: max==base, step=0 so ramp can't engage (mu/kappa set the scale).
         self.reward_scaler = AdaptiveRewardScaler(
             base_ea_weight=base_ea,
-            max_ea_weight=base_ea,
+            max_ea_weight=base_ea * 3.0,
             variance_threshold=1.0,
-            scale_step=0.0,
+            scale_step=0.5,
             window_size=20,
         )
 
@@ -1158,9 +1157,13 @@ class EpisodeRunner(EpisodeDiagnosticsMixin, EpisodeVisualizationMixin, EpisodeR
         pe_total = sum(pe_rewards) if pe_rewards else 0.0
         final_rewards['components']['pe_step_rewards'] = pe_total
 
-        # Ea_eff for the adaptive midpoint schedule MUST be the reward-consistent
-        # (TS-relative) value, not a bare-barrier LSE. Sourced from _calculate_final_rewards.
-        _ea_eff_for_tracking = final_rewards.get('reward_ea_eff') if dissociated else None
+        # Compute Ea_eff for adaptive midpoint tracking.
+        _ea_eff_for_tracking = None
+        if activations and dissociated:
+            _kT = 8.617333262e-5 * 1000.0  # k_B * T at 1000K
+            _scaled = [e / _kT for e in activations]
+            _max_s = max(_scaled)
+            _ea_eff_for_tracking = _kT * (_max_s + np.log(sum(np.exp(s - _max_s) for s in _scaled)))
 
         results = {
             'dissociated': dissociated,
@@ -1501,7 +1504,7 @@ class EpisodeRunner(EpisodeDiagnosticsMixin, EpisodeVisualizationMixin, EpisodeR
         """Get kwargs for reward calculation; raises ValueError if required fields are missing."""
         if hasattr(self.config, 'reward'):
             required_fields = ['require_dissociation', 'Ea_gamma', 'ea_sigmoid_k',
-                             't_target', 'nu_0', 'kappa_aggregation', 'cap_unsuccessful_reward']
+                             'ea_sigmoid_midpoint', 'cap_unsuccessful_reward']
             missing = [f for f in required_fields if not hasattr(self.config.reward, f)]
             if missing:
                 raise ValueError(
@@ -1512,14 +1515,12 @@ class EpisodeRunner(EpisodeDiagnosticsMixin, EpisodeVisualizationMixin, EpisodeR
                 'require_dissociation': self.config.reward.require_dissociation,
                 'Ea_gamma': self.config.reward.Ea_gamma,
                 'ea_sigmoid_k': self.config.reward.ea_sigmoid_k,
-                't_target': self.config.reward.t_target,
-                'nu_0': self.config.reward.nu_0,
-                'kappa_aggregation': self.config.reward.kappa_aggregation,
+                'ea_sigmoid_midpoint': self.config.reward.ea_sigmoid_midpoint,
                 'cap_unsuccessful_reward': self.config.reward.cap_unsuccessful_reward
             }
         else:
             required_fields = ['require_dissociation', 'Ea_gamma', 'ea_sigmoid_k',
-                             't_target', 'nu_0', 'kappa_aggregation', 'cap_unsuccessful_reward']
+                             'ea_sigmoid_midpoint', 'cap_unsuccessful_reward']
             missing = [f for f in required_fields if not hasattr(self.config, f)]
             if missing:
                 raise ValueError(
@@ -1530,9 +1531,7 @@ class EpisodeRunner(EpisodeDiagnosticsMixin, EpisodeVisualizationMixin, EpisodeR
                 'require_dissociation': self.config.require_dissociation,
                 'Ea_gamma': self.config.Ea_gamma,
                 'ea_sigmoid_k': self.config.ea_sigmoid_k,
-                't_target': self.config.t_target,
-                'nu_0': self.config.nu_0,
-                'kappa_aggregation': self.config.kappa_aggregation,
+                'ea_sigmoid_midpoint': self.config.ea_sigmoid_midpoint,
                 'cap_unsuccessful_reward': self.config.cap_unsuccessful_reward
             }
 

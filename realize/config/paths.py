@@ -294,7 +294,8 @@ def validate_input_files():
     required_files = [
         (STRUCTURE_FILE, "Structure file"),
         (O2_FILE, "O2 molecule file"),
-        (EMBEDDING_CHECKPOINT_PATH, "Embedding checkpoint")
+        (EMBEDDING_CHECKPOINT_PATH, "Embedding checkpoint"),
+        (NEB_EXECUTABLE, "NEB executable")
     ]
     
     missing_files = []

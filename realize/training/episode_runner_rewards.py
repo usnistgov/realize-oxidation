@@ -55,57 +55,24 @@ class EpisodeRewardMixin:
                 "Required fields: ea_weight, dissociation_weight, timeout_penalty"
             )
 
-        # --- reward-v2: assemble absolute-TS energies + commitment endpoints ---
-        env = self.env
-        E_0 = getattr(env, 'episode_E0', None)
-        emin_list = getattr(env, 'step_emin_list', [])
-        commit_list = getattr(env, 'step_commit_list', [])
-
-        ts_energies_rel = []
-        if dissociated and activations:
-            if E_0 is None:
-                raise ValueError(
-                    "reward-v2 requires env.episode_E0 (absolute initial PE in eV); "
-                    "not set at reset. See reset_episode E0 capture."
-                )
-            if len(emin_list) != len(activations):
-                raise ValueError(
-                    f"reward-v2 misalignment: len(step_emin_list)={len(emin_list)} "
-                    f"!= len(activations)={len(activations)}."
-                )
-            ts_energies_rel = []
-            for E_min_i, E_barrier_i in zip(emin_list, activations):
-                if E_min_i is None:
-                    raise ValueError(
-                        "reward-v2: a valid step has E_min_i=None (absolute PE capture "
-                        "failed). Refusing silent substitution."
-                    )
-                ts_energies_rel.append((E_min_i + E_barrier_i) - E_0)
-
-        adaptive_ea_weight = self.reward_scaler.get_ea_weight()  # scaler disabled -> == base
-        (total, ea, dissoc), _rw_diag = calculate_pathway_reward(
-            ts_energies_rel=ts_energies_rel,
-            commitment_endpoints=commit_list if dissociated else None,
+        # Use adaptive ea_weight if scaler is active
+        adaptive_ea_weight = self.reward_scaler.get_ea_weight()
+        total, ea, dissoc = calculate_pathway_reward(
+            activation_energies=activations,
             temperature=1000.0,
             dissociated=dissociated,
             ea_weight=adaptive_ea_weight,
             dissociation_weight=dissociation_weight,
             timeout_penalty=timeout_penalty,
-            debug=True,   # expose reward-consistent Ea_eff for adaptive mu schedule
             **self._get_reward_kwargs()
         )
-
-        # reset per-episode reward-v2 accumulators
-        env.step_emin_list = []
-        env.step_commit_list = []
 
         # Update adaptive reward scaler
         self.reward_scaler.update(total)
 
         return {
             'total': total,
-            'components': {'ea': ea, 'dissociation': dissoc},
-            'reward_ea_eff': _rw_diag.get('Ea_eff'),
+            'components': {'ea': ea, 'dissociation': dissoc}
         }
 
     def _distribute_episode_reward(self, episode_reward: float, valid_step_indices: list,

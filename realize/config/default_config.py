@@ -311,22 +311,9 @@ class RewardConfig:
     # Max cumulative invalid penalty per episode (keeps vacuum from being an escape route).
     invalid_penalty_cap: float = -0.3
     
-    # Sigmoid shaping for Ea (width = k_B T at 1000K -> argument is a true log-rate)
-    ea_sigmoid_k: float = 0.0862
-    ea_sigmoid_midpoint: float = 1.6  # DEAD: mu now derived from t_target (kept for back-compat)
-    # mu = k_B T ln(nu_0 * t_target). t_target is the kinetic timescale the reward centers on.
-    #   1e-9s->~0.79eV  1e-7s->~1.16eV  1e-6s->~1.39eV  1e-3s->~1.98eV  (1000K, nu_0=1e13)
-    t_target: float = 1.6e-7
-    nu_0: float = 1.0e13
-    kappa_aggregation: str = "min"   # "min" (weakest-link) or "mean"
-    kappa_softmin_tau: float = 0.1   # softness for kappa_aggregation="softmin" (tau->0 = hard min)
-    # --- Adaptive midpoint schedule (manuscript property #25) ---
-    t_target_init: float = 1.6e-7        # cycle-0 timescale (mu ~1.2 eV at 1000K)
-    t_target_floor: float = 1.08e-9      # physical floor timescale (~1 ns -> mu_floor ~0.80 eV)
-    mu_quantile: float = 0.25            # target this quantile of achieved Ea_eff
-    mu_margin: float = 0.198             # aim this far below the quantile (eV); ~1 decade
-    mu_max_decades_per_cycle: float = 1.0
-    mu_ratchet_release_cycles: int = 3
+    # Sigmoid shaping for Ea
+    ea_sigmoid_k: float = 0.086
+    ea_sigmoid_midpoint: float = 1.6
     
     # Reward processing
     cap_unsuccessful_reward: bool = True
@@ -340,16 +327,7 @@ class RewardConfig:
                                      self.high_barrier_penalty, self.oscillation_penalty]), \
                "Penalties must be non-negative"
         assert self.ea_sigmoid_k > 0, "ea_sigmoid_k must be positive"
-        assert self.t_target > 0, "t_target must be positive (seconds)"
-        assert self.nu_0 > 0, "nu_0 must be positive (s^-1)"
-        assert self.kappa_aggregation in ("min", "mean", "softmin"), "kappa_aggregation must be 'min', 'mean', or 'softmin'"
-        assert self.kappa_softmin_tau > 0, "kappa_softmin_tau must be positive"
-        assert self.t_target_init > 0, "t_target_init must be positive (seconds)"
-        assert self.t_target_floor > 0, "t_target_floor must be positive (seconds)"
-        assert 0.0 < self.mu_quantile <= 1.0, "mu_quantile must be in (0, 1]"
-        assert self.mu_margin >= 0, "mu_margin must be non-negative (eV)"
-        assert self.mu_max_decades_per_cycle > 0, "mu_max_decades_per_cycle must be positive"
-        assert self.mu_ratchet_release_cycles >= 1, "mu_ratchet_release_cycles must be >= 1"
+        assert self.ea_sigmoid_midpoint > 0, "ea_sigmoid_midpoint must be positive"
         assert len(self.area_at_mass_targets) > 0, "area_at_mass_targets must not be empty"
         assert all(0 < a <= 1 for a in self.area_at_mass_targets), "area_at_mass_targets must be in (0,1]"
         assert 0 < self.target_mass_fraction <= 1, "target_mass_fraction must be in (0,1]"
@@ -448,12 +426,6 @@ class RuntimeConfig:
     max_cumulative_o_before_reset: int = 80      # reset when O count reaches threshold
 
     num_parallel_workers: int = 1
-    # Workers that must submit their per-cycle Ea_eff before the cycle advances.
-    # None => all of them (num_parallel_workers). A smaller value advances the
-    # cycle early and force-advances the remaining workers, which resets their
-    # surface and DISCARDS their accumulated barrier data -- set it below the
-    # worker count only deliberately.
-    cycle_quorum: Optional[int] = None
     cores_per_worker: int = 7
 
     # Logging

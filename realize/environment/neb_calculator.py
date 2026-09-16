@@ -661,18 +661,6 @@ class NEBCalculator(NEBValidationMixin):
                 _LOG.debug(f"NEB RESULT: Invalid path detected (multiple significant barriers). Activation energy: {max_barrier:.4f} eV")
             return -1.0
 
-    def get_commitment_endpoints(self, silent=True):
-        """Reactant/product basin minima (eV, initial-referenced) for the equilibrium
-        commitment proxy kappa. Only (E_P - E_R) is used, so the shared zero cancels.
-        Returns (E_R, E_P) or (None, None)."""
-        energy_array = self.read_neb_energy(verbose=not silent)
-        if len(energy_array) == 0:
-            return None, None
-        max_idx = int(np.argmax(energy_array))
-        E_R = float(np.min(energy_array[:max_idx + 1]))
-        E_P = float(np.min(energy_array[max_idx:]))
-        return E_R, E_P
-
     def read_neb_energy(self, verbose=True):
         """
         Read per-image energies (eV, relative to the initial image) from per-replica logs.

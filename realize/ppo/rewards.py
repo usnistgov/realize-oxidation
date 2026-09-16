@@ -5,23 +5,19 @@ _LOG = logging.getLogger(__name__)
 
 
 def calculate_pathway_reward(
-    ts_energies_rel: Union[List[float], np.ndarray, None],
-    commitment_endpoints: Optional[List[Tuple[float, float]]] = None,
+    activation_energies: Union[List[float], np.ndarray, None],
     temperature: float = 1000.0,
     dissociated: bool = False,
-    ea_weight: float = 4.0,
-    dissociation_weight: float = 2.0,
+    ea_weight: float = 3.0,
+    dissociation_weight: float = 0.3,
     require_dissociation: bool = True,
     episode_ended: bool = False,
     timeout_penalty: float = 0.5,
     Ea_gamma: float = 0.99,
     E_threshold: float = 0.05,
     cap_unsuccessful_reward: bool = True,
-    ea_sigmoid_k: float = 0.0862,
-    t_target: float = 1.6e-7,
-    nu_0: float = 1e13,
-    kappa_aggregation: str = "min",
-    kappa_softmin_tau: float = 0.1,
+    ea_sigmoid_k: float = 0.2,
+    ea_sigmoid_midpoint: float = 1.2,
     debug: bool = False
 ) -> Union[Tuple[float, float, float], Tuple[Tuple[float, float, float], Dict[str, Any]]]:
     """Pathway reward from the effective activation barrier.
@@ -64,53 +60,48 @@ def calculate_pathway_reward(
         'filtered_barriers': []
     }
 
-    # mu derived from target timescale (TST): mu = kT ln(nu_0 * t_target)
-    mu = _mu_from_timescale(t_target, nu_0, k_B, temperature)
-    diagnostics['mu'] = mu
-
-    clean_ts = _validate_ts_energies(ts_energies_rel)
-    diagnostics['path_length'] = len(clean_ts) if clean_ts is not None else 0
+    clean_barriers = _validate_energies(activation_energies)
+    diagnostics['path_length'] = len(clean_barriers) if clean_barriers is not None else 0
 
     ea_reward = 0.0
     dissociation_reward = 0.0
 
     if dissociated:
-        if clean_ts is not None and len(clean_ts) > 0:
-            significant = list(clean_ts)  # already TS-relative; no E_threshold filter
-            diagnostics['num_barriers'] = len(significant)
-            Ea_eff = _calculate_effective_barrier(significant, k_B, temperature)
+        # Handle dissociation even without recorded barriers
+        if clean_barriers is not None and len(clean_barriers) > 0:
+            significant_barriers = [E for E in clean_barriers if E > E_threshold]
+            diagnostics['filtered_barriers'] = significant_barriers
+            diagnostics['num_barriers'] = len(significant_barriers)
+        else:
+            significant_barriers = []
+            diagnostics['filtered_barriers'] = []
+            diagnostics['num_barriers'] = 0
+
+        if len(significant_barriers) == 0:
+            # Spontaneous reaction or missed logging
+            Ea_eff = 0.0
+            diagnostics['Ea_eff'] = 0.0
+            diagnostics['max_barrier'] = 0.0
+        else:
+            Ea_eff = _calculate_effective_barrier(
+                significant_barriers, k_B, temperature
+            )
             diagnostics['Ea_eff'] = Ea_eff
-            diagnostics['max_barrier'] = max(significant)
+            diagnostics['max_barrier'] = max(significant_barriers)
+
             if not np.isfinite(Ea_eff):
-                Ea_eff = 10.0
+                Ea_eff = 10.0  # 10 eV is essentially impassable
                 diagnostics['Ea_eff'] = Ea_eff
                 diagnostics['numerical_issue'] = True
-        else:
-            # No NEB-verified transition in this episode (e.g. every NEB failed and
-            # the episode ended via the catastrophic-dissociation path). Ea_eff is
-            # UNMEASURED, not zero: setting it to 0.0 would put the Fermi-Dirac term
-            # at its maximum and hand out full barrier reward for a pathway whose
-            # barrier was never verified. Flag it so the EA term is zeroed below.
-            significant = []
-            Ea_eff = None
-            diagnostics['Ea_eff'] = None
-            diagnostics['max_barrier'] = None
-            diagnostics['no_verified_transition'] = True
 
-        kappa_bar = _commitment_kappa_bar(commitment_endpoints, k_B, temperature, kappa_aggregation, kappa_softmin_tau)
-        diagnostics['kappa_bar'] = kappa_bar
+        Ea_reward_raw = _sigmoid_reward(Ea_eff, ea_sigmoid_midpoint, ea_sigmoid_k)
 
-        if Ea_eff is None:
-            # Unmeasured barrier -> no barrier reward (dissociation reward unaffected).
-            Ea_reward_raw = 0.0
-        else:
-            Ea_reward_raw = _sigmoid_reward(Ea_eff, mu, ea_sigmoid_k)
-        N = len(significant)
+        # Path-length penalty over filtered barrier count
+        N = len(significant_barriers)
         path_penalty = Ea_gamma ** N if N > 0 else 1.0
 
-        # kappa_bar multiplies the BARRIER term only (all factors in [0,1] -> ea_reward >= 0)
-        ea_reward = ea_weight * Ea_reward_raw * path_penalty * kappa_bar
-        dissociation_reward = dissociation_weight  # stays POSITIVE (sign constraint)
+        ea_reward = ea_weight * Ea_reward_raw * path_penalty
+        dissociation_reward = dissociation_weight
 
     else:
         if require_dissociation:
@@ -131,22 +122,6 @@ def calculate_pathway_reward(
         return (total_reward, ea_reward, dissociation_reward), diagnostics
     else:
         return total_reward, ea_reward, dissociation_reward
-
-
-def _validate_ts_energies(ts_energies_rel):
-    """Validate TS-relative energies: FINITE only (may be NEGATIVE by design,
-    since E_i^TS,rel = (E_min,i + E_barrier,i) - E_0 can sit below E_0).
-    Fails loud on None or non-finite; tolerates empty list and negatives."""
-    if ts_energies_rel is None:
-        raise ValueError(
-            "ts_energies_rel cannot be None. Build it upstream from "
-            "(E_min,i + E_barrier,i) - E_0, or pass [] for the non-dissociated path."
-        )
-    arr = np.asarray(ts_energies_rel, dtype=float).flatten()
-    if arr.size > 0 and not np.all(np.isfinite(arr)):
-        bad = [f"[{i}]={v}" for i, v in enumerate(arr) if not np.isfinite(v)]
-        raise ValueError(f"Non-finite TS energies: {bad[:10]}")
-    return [float(v) for v in arr.tolist()]
 
 
 def _validate_energies(
@@ -240,44 +215,6 @@ def _calculate_effective_barrier(
         )
     
     return Ea_eff
-
-def _mu_from_timescale(t_target: float, nu_0: float, k_B: float, temperature: float) -> float:
-    """mu = k_B*T*ln(nu_0*t_target): barrier whose Arrhenius escape time == t_target."""
-    if t_target <= 0 or nu_0 <= 0:
-        raise ValueError(f"t_target={t_target}, nu_0={nu_0} must both be > 0")
-    return float(k_B * temperature * np.log(nu_0 * t_target))
-
-
-def _commitment_kappa_bar(commitment_endpoints, k_B, temperature, aggregation="min", tau=0.1):
-    """Equilibrium commitment proxy (NOT a dynamic transmission coefficient):
-        kappa_i = sigmoid(beta*(E_P,i - E_R,i)); kappa_bar = min (or mean).
-    Missing endpoints -> treated as kappa=1 (no penalty). No usable endpoints -> 1.0."""
-    if not commitment_endpoints:
-        return 1.0
-    beta = 1.0 / (k_B * temperature)
-    ks = []
-    for pair in commitment_endpoints:
-        if pair is None:
-            continue
-        E_R, E_P = pair
-        if E_R is None or E_P is None:
-            continue
-        arg = np.clip(beta * (E_P - E_R), -50, 50)
-        ks.append(1.0 / (1.0 + np.exp(arg)))
-    if len(ks) == 0:
-        return 1.0
-    ks = np.asarray(ks)
-    if aggregation == "min":
-        return float(ks.min())
-    if aggregation == "mean":
-        return float(ks.mean())
-    if aggregation == "softmin":
-        # smooth weakest-link: -tau*ln(mean(exp(-k/tau))); tau->0 => hard min
-        z = -ks / tau
-        m = float(np.max(z))
-        return float(-tau * (m + np.log(np.mean(np.exp(z - m)))))
-    raise ValueError(f"unknown kappa aggregation: {aggregation!r}")
-
 
 def _sigmoid_reward(
     Ea_eff: float,

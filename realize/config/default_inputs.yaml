@@ -233,19 +233,8 @@ reward:
   invalid_penalty_cap: -0.3           # max cumulative invalid penalty per episode (negative)
 
   # Sigmoid shaping for activation energy (Ea)
-  ea_sigmoid_k: 0.0862
+  ea_sigmoid_k: 0.086
   ea_sigmoid_midpoint: 1.6
-  t_target: 1.6e-07
-  nu_0: 1.0e+13
-  kappa_aggregation: min
-  kappa_softmin_tau: 0.1
-  # Adaptive midpoint schedule (property #25)
-  t_target_init: 1.6e-07
-  t_target_floor: 1.08e-09
-  mu_quantile: 0.25
-  mu_margin: 0.198
-  mu_max_decades_per_cycle: 1.0
-  mu_ratchet_release_cycles: 3
 
   cap_unsuccessful_reward: true
   Ea_gamma: 0.99

@@ -14,7 +14,6 @@ from realize.config.paths import (
     get_neb_input_file_path
 )
 from realize.environment.neb_calculator import NEBCalculator
-from realize.environment.neb_calculator_ase import ASENEBCalculator
 from typing import Optional, Tuple
 from realize.utils.logger import UnifiedLogger
 from realize.environment.episode_helpers import (
@@ -413,7 +412,7 @@ def _run_neb_processing(env, episode, step_count, current_try_num, dist_new,
             # In parallel worker mode, _neb_num_procs_override caps MPI ranks
             # to this worker's share of CPU cores
             neb_procs = getattr(env, '_neb_num_procs_override', None)
-            neb_calc = ASENEBCalculator(
+            neb_calc = NEBCalculator(
                 orig_state_file,
                 curr_state_file,
                 neb_in_file=get_neb_input_file_path(),
@@ -438,29 +437,6 @@ def _run_neb_processing(env, episode, step_count, current_try_num, dist_new,
                 )
                 valid_step = (0 <= activation_energy <= high_barrier_threshold)
                 _LOG.info(f" NEB result: activation={activation_energy:.3f}, valid={valid_step}")
-
-                # --- reward-v2 capture: absolute E_min,i (eV) + commitment endpoints ---
-                from realize.environment.neb_calculator import KCAL_MOL_TO_EV
-                _E_min_i = None
-                _commit_RP = (None, None)
-                if valid_step:
-                    try:
-                        _pe_raw = env.lammps_interface.get_potential_energy(orig_state_file)
-                        _E_min_i = float(_pe_raw) * KCAL_MOL_TO_EV
-                    except Exception as _e_emin:
-                        _LOG.warning(f"  [reward-v2] E_min capture failed: {_e_emin}")
-                        _E_min_i = None
-                    try:
-                        _commit_RP = neb_calc.get_commitment_endpoints(silent=True)
-                    except Exception as _e_cmt:
-                        _LOG.warning(f"  [reward-v2] commitment-endpoint capture failed: {_e_cmt}")
-                        _commit_RP = (None, None)
-                if not hasattr(env, 'step_emin_list'):
-                    env.step_emin_list = []
-                if not hasattr(env, 'step_commit_list'):
-                    env.step_commit_list = []
-                env._pending_emin = _E_min_i
-                env._pending_commit = _commit_RP
 
                 # Track "success but invalid" runs to escape soft-loops
                 if not valid_step:
@@ -596,10 +572,7 @@ def _run_neb_processing(env, episode, step_count, current_try_num, dist_new,
                                   f"O-O={pre_rollback_dist:.3f} Angstrom -- treating as SUCCESS")
                             env.previous_episode_dissociated = True
                             env.last_md_verified_dissociation = True
-                            # NEB failed here, so no saddle was verified: NOT an accepted transition.
-                            # activation=-1.0 makes the runner's `>= 0` gate skip the
-                            # append, keeping only verified transitions in Ea_eff.
-                            return (pre_rollback_dist, None, 0.0, True, True, -1.0, current_try_num, False)
+                            return (pre_rollback_dist, None, 0.0, True, True, 0.0, current_try_num, False)
                         if os.path.exists(orig_state_file):
                             env.load_state(orig_state_file)
                             if hasattr(env, 'action_processor'):
@@ -889,18 +862,6 @@ def _run_neb_processing(env, episode, step_count, current_try_num, dist_new,
         env.activation_energies.append(activation_energy)
 
         post_neb_dissociation = post_neb_dissociation_check
-
-        # Record per-step reward-v2 quantities for ACCEPTED valid steps (parallel to activations)
-        # NOTE: the 0.8 eV dissociation gate was removed -- it intercepted dissociations before
-        # MD verification, so real (1.5-2.5 eV) dissociations never verified or counted. Barrier
-        # preference is handled by the reward's Fermi-Dirac mu mapping, per manuscript design.
-        if valid_step:
-            if not hasattr(env, 'step_emin_list'):
-                env.step_emin_list = []
-            if not hasattr(env, 'step_commit_list'):
-                env.step_commit_list = []
-            env.step_emin_list.append(getattr(env, '_pending_emin', None))
-            env.step_commit_list.append(getattr(env, '_pending_commit', (None, None)))
         _LOG.debug(f" Post-NEB dissociation check: {post_neb_dissociation}")
 
         current_distance, _ = env.check_o2_distance()

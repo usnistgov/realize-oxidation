@@ -237,24 +237,10 @@ def _worker_main(
         elif hasattr(config, 'reward_config'):
             _init_mid = config.reward_config.ea_sigmoid_midpoint
         else:
-            raise ValueError(
-                "Reward config not found: config must expose 'reward' or "
-                "'reward_config' with ea_sigmoid_midpoint. Refusing a silent default."
-            )
-        # Quorum MUST default to the full worker count. With a smaller quorum a
-        # cycle advances before every worker has submitted; the non-submitting
-        # workers are then force-advanced, which resets their surface and
-        # DISCARDS their accumulated _local_cycle_ea_effs (see the
-        # 'external_advance' branch below). That loses most of the per-cycle
-        # barrier evidence and can leave a later cycle with no data at all,
-        # while the midpoint schedule still advances.
-        _quorum = getattr(config.runtime, 'cycle_quorum', None)
-        if _quorum is None:
-            _quorum = getattr(config.runtime, 'num_parallel_workers', 1)
-        _quorum = max(1, int(_quorum))
+            _init_mid = getattr(config, 'ea_sigmoid_midpoint', 1.2)
         _cycle_mgr = CycleStateManager(
             state_file=_cycle_state_file,
-            quorum=_quorum,
+            quorum=2,
             initial_midpoint=_init_mid,
             worker_id=f'worker_{worker_id}',
         )
@@ -279,7 +265,7 @@ def _worker_main(
             _cyc_advanced, _cyc_midpoint = _cycle_mgr.check_cycle_advanced()
             if _cyc_advanced:
                 _update_worker_midpoint(config, _cyc_midpoint, worker_tag)
-                _reset_surface(env)
+                _reset_surface(env, reason='external_advance')
                 _local_cycle_ea_effs = []
                 _LOG.info(f"{worker_tag} Cycle advanced externally. Reset + midpoint={_cyc_midpoint:.4f}")
 
@@ -292,7 +278,7 @@ def _worker_main(
                     if _q_met:
                         # This worker triggered quorum: reset now.
                         _update_worker_midpoint(config, _q_mid, worker_tag)
-                        _reset_surface(env)
+                        _reset_surface(env, reason='threshold_quorum')
                         _LOG.info(f"{worker_tag} Quorum met! Reset + midpoint={_q_mid:.4f}")
                     else:
                         _LOG.info(f"{worker_tag} Submitted Ea data, waiting for quorum. "
@@ -318,27 +304,13 @@ def _worker_main(
                     _LOG.error(f"{worker_tag} {consecutive_failures} consecutive "
                                f"failures -- exiting worker process.")
                     raise
-                if consecutive_failures >= 5:
-                    _LOG.info(f"{worker_tag} {consecutive_failures} consecutive failures. "
-                          f"Resetting to pristine structure and zeroing counters.")
-                    try:
-                        from realize.config.paths import get_structure_file_path
-                        env.structure_manager.initialize_from_file(get_structure_file_path())
-                        env.cumulative_dissociated_o_count = 0
-                        if hasattr(env, 'structure_manager'):
-                            env.structure_manager.cumulative_dissociated_o_count = 0
-                        env.previous_episode_dissociated = False
-                        env.last_md_verified_dissociation = False
-                        env.global_catastrophic_failures = 0
-                        env.force_next_step = False
-                        if hasattr(env, 'neb_failure_tracker'):
-                            env.neb_failure_tracker.clear()
-                        if hasattr(env, 'episode_outcomes'):
-                            env.episode_outcomes.clear()
-                        consecutive_failures = 0
-                        _LOG.info(f"{worker_tag} Reset complete. Resuming.")
-                    except Exception as reset_e:
-                        _LOG.info(f"{worker_tag} Reset failed: {reset_e}")
+                # REMOVED: ad-hoc `consecutive_failures >= 5` recovery. It restored the
+                # PRISTINE substrate and zeroed cumulative_dissociated_o_count on repeated
+                # episode failures, wiping cycle progress (workers reached ~60/80 O and were
+                # reset -> zero completed cycles). A recovery is NOT a cycle boundary
+                # (spec item 27: cumO resets only at 80 O). Repeated failures now escalate
+                # to the `>= 50` hard-exit above, which raises so the collector restarts the
+                # worker fresh -- the only legitimate recovery.
                 local_episode_count += 1
                 continue
 
@@ -513,21 +485,30 @@ def _should_reset_surface(local_ep, env, reset_interval, max_o):
     return False
 
 
-def _reset_surface(env):
-    """Reset to pristine substrate. CYCLE BOUNDARY ONLY (spec items 25/27)."""
+# Cycle-boundary reset reasons. Zeroing cumulative_dissociated_o_count is legal
+# ONLY for these (spec item 27). The parallel quorum model has TWO legitimate
+# boundaries: this worker reaching 80 O with quorum met ('threshold_quorum'),
+# and an external advance when ANOTHER worker reaches quorum ('external_advance'),
+# in which case THIS worker's local cumO may be < 80 -- still legitimate. Any
+# other caller (recovery/error/death-spiral) is a bug and must NOT zero cumO.
+_CYCLE_RESET_REASONS = ('threshold_quorum', 'external_advance')
+
+
+def _reset_surface(env, reason=None):
+    """Reset to pristine substrate. CYCLE BOUNDARY ONLY (spec items 25/27).
+
+    `reason` must be one of _CYCLE_RESET_REASONS. Calling without a valid reason
+    (recovery/error/death-spiral) raises -- silently zeroing cumO there destroyed
+    cycle progress (388 dissociations -> 0 cycles). Gating on an explicit reason
+    (not on the counter value) correctly permits the external_advance boundary,
+    where this worker's local cumO is legitimately < threshold.
+    """
     from realize.config.paths import get_structure_file_path
-    # Fail-fast invariant: cumulative_dissociated_o_count is monotonic within a
-    # cycle and may be zeroed ONLY at a genuine 80-O cycle boundary. Any other
-    # caller (recovery/error/death-spiral) reaching here is a bug that would
-    # silently erase cycle progress -- raise instead (ABSOLUTE RULE: no fallback).
-    _sm = getattr(env, 'structure_manager', None)
-    _max_o = getattr(getattr(env, 'config', None), 'max_cumulative_o_before_reset', None)
-    _cur = getattr(_sm, 'cumulative_dissociated_o_count', None) if _sm is not None else None
-    if _max_o is not None and _cur is not None and _cur < _max_o:
+    if reason not in _CYCLE_RESET_REASONS:
         raise RuntimeError(
-            f"_reset_surface invoked with cumO={_cur} < threshold {_max_o}. "
-            f"This is a CYCLE-BOUNDARY operation (item 27) and must not be called "
-            f"from a recovery/termination path (e.g. NEB death-spiral).")
+            f"_reset_surface called with reason={reason!r}; must be one of "
+            f"{_CYCLE_RESET_REASONS}. This is a CYCLE-BOUNDARY operation (item 27) "
+            f"and must not be invoked from a recovery/termination path.")
     try:
         env.structure_manager.initialize_from_file(get_structure_file_path())
         if hasattr(env.structure_manager, 'cumulative_dissociated_o_count'):

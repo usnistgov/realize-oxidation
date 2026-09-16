@@ -59,8 +59,6 @@ reward:
   dissociation_weight: 2.0     # weight on successful-dissociation term
   ea_sigmoid_k: 0.086          # sigmoid steepness for Ea shaping
   ea_sigmoid_midpoint: 1.6     # sigmoid midpoint (eV) for Ea shaping
-  kappa_aggregation: softmin
-  kappa_softmin_tau: 0.1
 
 # ---------------------------------------------------------------------------
 # backbone -- SevenNet backbone fine-tuning  (advanced)

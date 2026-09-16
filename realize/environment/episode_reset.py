@@ -350,16 +350,6 @@ def reset_episode(env, episode_id, checkpoint_path=None, device=None, embedding_
         env.active_o2 = True
 
         env.relax_str(None)
-        # --- reward-v2: capture absolute initial PE (E_0, eV) of the relaxed start state ---
-        try:
-            from realize.environment.neb_calculator import KCAL_MOL_TO_EV
-            _pe0_raw = env.lammps_interface.get_potential_energy(env.coo_file)
-            env.episode_E0 = float(_pe0_raw) * KCAL_MOL_TO_EV
-        except Exception as _e_e0:
-            _log(env, 'error', f"[reward-v2] E_0 capture failed: {_e_e0}")
-            raise
-        env.step_emin_list = []
-        env.step_commit_list = []
         gc.collect()
 
         atoms = io.read(env.coo_file, format="lammps-data", atom_style="charge")
