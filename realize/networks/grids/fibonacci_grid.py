@@ -1,3 +1,4 @@
+"""Fibonacci spiral grid on the unit sphere."""
 import torch
 import math
 

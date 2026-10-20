@@ -1,3 +1,4 @@
+"""Running-statistics state normalization."""
 import torch
 import numpy as np
 from typing import Optional

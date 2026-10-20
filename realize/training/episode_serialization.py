@@ -1,3 +1,4 @@
+"""Converts tensors and arrays to JSON-serializable values."""
 import torch
 import numpy as np
 

@@ -1,3 +1,4 @@
+"""E(3)-equivariant state embeddings from the SevenNet backbone."""
 import torch
 import gc
 import os

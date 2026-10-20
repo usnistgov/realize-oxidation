@@ -1,3 +1,4 @@
+"""Trajectory novelty tracking from state embeddings."""
 import torch
 from typing import Tuple
 

@@ -1,3 +1,4 @@
+"""Input, output, and scratch directory paths."""
 import os
 
 # Base directories. Inputs live in data/ at the repo root; outputs (results/, tmp/)

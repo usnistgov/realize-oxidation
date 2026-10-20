@@ -1,3 +1,4 @@
+"""RL environment: apply an O2 move, relax, then check dissociation and barriers."""
 import os
 import numpy as np
 import gc

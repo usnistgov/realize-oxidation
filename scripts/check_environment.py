@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Checks installed package versions against the validated environment."""
 
 import sys
 from importlib.metadata import PackageNotFoundError, version

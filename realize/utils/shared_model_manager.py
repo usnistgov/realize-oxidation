@@ -1,3 +1,4 @@
+"""Shared model access for distributed PPO."""
 import os
 import time
 import torch

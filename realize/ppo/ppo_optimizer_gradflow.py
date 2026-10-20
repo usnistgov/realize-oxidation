@@ -1,3 +1,4 @@
+"""Gradient-flow diagnostics for the PPO optimizer."""
 import numpy as np
 
 

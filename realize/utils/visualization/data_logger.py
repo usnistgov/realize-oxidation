@@ -1,3 +1,4 @@
+"""Collects visualization data."""
 import numpy as np
 from typing import Dict, Any, Optional
 from realize.utils.visualization.shape_validator import ShapeValidator

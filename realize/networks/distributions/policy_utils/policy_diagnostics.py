@@ -1,3 +1,4 @@
+"""Gradient, equivariance, and policy diagnostics."""
 import torch
 import torch.nn as nn
 import numpy as np

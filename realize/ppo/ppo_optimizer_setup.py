@@ -1,3 +1,4 @@
+"""Optimizer construction and backbone parameter injection."""
 import torch
 from typing import Dict, Optional, Any
 

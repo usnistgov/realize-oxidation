@@ -1,3 +1,4 @@
+"""Annealing schedules for sampling temperature and entropy."""
 import math
 from typing import Optional, Dict, List
 import logging

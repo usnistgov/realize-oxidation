@@ -1,3 +1,4 @@
+"""Spherical-harmonic visualization data for episodes."""
 import torch
 import numpy as np
 import os

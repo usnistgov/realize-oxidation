@@ -1,3 +1,4 @@
+"""Local frame alignment and directional features."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

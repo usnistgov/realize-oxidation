@@ -1,3 +1,4 @@
+"""Logging for environment, step, and episode events."""
 import os
 import json
 import numpy as np

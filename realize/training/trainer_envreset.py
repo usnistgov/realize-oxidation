@@ -1,3 +1,4 @@
+"""Substrate reset between oxidation cycles."""
 import os
 import shutil
 from ase import io as ase_io

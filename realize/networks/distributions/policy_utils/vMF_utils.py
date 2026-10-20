@@ -1,3 +1,4 @@
+"""von Mises-Fisher sampling and log-probability on S^2."""
 import torch
 import math
 from typing import Tuple

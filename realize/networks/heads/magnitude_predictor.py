@@ -1,3 +1,4 @@
+"""Translation-magnitude prediction head."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
