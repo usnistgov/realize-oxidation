@@ -1,3 +1,4 @@
+"""Logging of spherical-harmonic distributions for visualization."""
 from typing import Dict, Any, Optional
 from realize.utils.visualization.data_logger import VisualizationDataLogger
 from realize.utils.visualization.shape_validator import ShapeValidator

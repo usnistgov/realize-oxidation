@@ -1,3 +1,4 @@
+"""Multi-channel spherical-harmonic distribution over translation directions."""
 import os
 import torch
 import torch.nn.functional as F

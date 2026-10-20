@@ -1,3 +1,4 @@
+"""LAMMPS data-file writing and validation."""
 import os
 from ase import io
 import numpy as np

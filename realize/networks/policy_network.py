@@ -1,3 +1,4 @@
+"""E(3)-equivariant policy and value network."""
 import os
 import torch
 import torch.nn as nn

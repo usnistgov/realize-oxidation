@@ -1,3 +1,4 @@
+"""Shape checks and cleanup for visualization data."""
 import numpy as np
 import torch
 from typing import Union, Tuple, Optional

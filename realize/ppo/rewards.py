@@ -1,3 +1,4 @@
+"""Episode reward: Fermi-Dirac barrier term on the TS-referenced Ea_eff, plus dissociation reward."""
 import numpy as np
 from typing import List, Union, Tuple, Optional, Dict, Any
 import logging

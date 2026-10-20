@@ -1,3 +1,4 @@
+"""S^2 grid and cross-multiplicity tensor-product blocks."""
 import math
 
 import torch

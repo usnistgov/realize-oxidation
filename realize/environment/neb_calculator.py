@@ -1,3 +1,4 @@
+"""NEB barrier calculations with partitioned LAMMPS."""
 import numpy as np
 import re
 import os

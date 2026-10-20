@@ -1,3 +1,4 @@
+"""Rollout buffer with success oversampling."""
 import numpy as np
 import torch
 import gc

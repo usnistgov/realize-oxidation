@@ -1,3 +1,4 @@
+"""Plots spherical-harmonic distributions on the sphere."""
 import numpy as np
 import torch
 import matplotlib.pyplot as plt

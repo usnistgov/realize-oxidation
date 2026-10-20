@@ -1,3 +1,4 @@
+"""Layers and utilities for the spherical-harmonic head."""
 from __future__ import annotations
 
 import math

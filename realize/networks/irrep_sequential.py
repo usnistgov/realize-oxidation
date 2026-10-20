@@ -1,3 +1,4 @@
+"""Sequential containers and activations for e3nn irreps."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

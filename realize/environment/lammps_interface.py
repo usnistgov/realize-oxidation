@@ -1,3 +1,4 @@
+"""Wrapper around a reused LAMMPS (ReaxFF) instance."""
 import gc
 from typing import Optional
 from lammps import lammps

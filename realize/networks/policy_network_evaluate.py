@@ -1,3 +1,4 @@
+"""PolicyNetwork evaluation path used during PPO updates."""
 import math
 import torch
 import torch.nn.functional as F

@@ -1,3 +1,4 @@
+"""Gauss-Legendre quadrature grid on S^2."""
 import torch
 import numpy as np
 from numpy.polynomial.legendre import leggauss

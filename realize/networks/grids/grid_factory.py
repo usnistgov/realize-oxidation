@@ -1,3 +1,4 @@
+"""Cached construction and validation of spherical grids."""
 import torch
 import math
 from typing import Optional, Dict, Tuple

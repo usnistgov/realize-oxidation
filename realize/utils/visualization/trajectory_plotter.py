@@ -1,3 +1,4 @@
+"""Plots O2 trajectories and distance evolution."""
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, Optional, List

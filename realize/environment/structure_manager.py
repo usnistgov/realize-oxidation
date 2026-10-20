@@ -1,3 +1,4 @@
+"""Reads and writes the working atomic structure."""
 import os
 import shutil
 from typing import Optional, Tuple

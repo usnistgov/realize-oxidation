@@ -1,3 +1,4 @@
+"""Configuration dataclasses and their defaults."""
 from dataclasses import dataclass, field
 from typing import Optional, List, Literal
 import warnings

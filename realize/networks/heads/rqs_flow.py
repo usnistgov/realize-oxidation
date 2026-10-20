@@ -1,3 +1,4 @@
+"""Bounded rational-quadratic spline flow for the translation magnitude."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

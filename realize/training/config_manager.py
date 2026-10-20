@@ -1,3 +1,4 @@
+"""Applies command-line overrides to the configuration."""
 import copy
 from typing import Any, Dict, Union
 from dataclasses import is_dataclass, fields

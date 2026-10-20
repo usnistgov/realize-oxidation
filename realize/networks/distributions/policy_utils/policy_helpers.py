@@ -1,3 +1,4 @@
+"""Shared helpers for the policy distributions."""
 import torch
 import math
 import numpy as np

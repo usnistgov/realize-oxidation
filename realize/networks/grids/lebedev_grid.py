@@ -1,3 +1,4 @@
+"""Lebedev quadrature grids on S^2."""
 import torch
 import math
 from typing import Tuple
